@@ -29,15 +29,13 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
     model::Ball testBall = game.ball;
     pred.predictBall(testBall);
     for (auto& predictedBall : pred.ballTrack)
-        spheres.push_back(Sphere{predictedBall.x, predictedBall.y, predictedBall.z, 0.5, 1.0, 0.0, 0.0, 1.0});
+        spheres.push_back(Sphere{predictedBall.x, predictedBall.y, predictedBall.z, 0.5, 1.0, 0.0, 0.0, 0.5});
 
     if (myRole == Role::Defender)
     {
-        debug << "vy=" << me.velocity_y << " y="<< me.y;
-        print();
         if (defState == DefenderState::ToGate)
         {
-            if (bot.distTo(0.0, -rules.arena.depth/2 + rules.arena.bottom_radius, 1.0)<1/*magic*/)
+            if (bot.distTo(0.0, -g_rules.arena.depth/2 - g_rules.arena.goal_side_radius, 1.0)<1/*magic*/)
             {
                 debug << "on gate";
                 print();
@@ -47,7 +45,7 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
             {
                 debug << "go to gate";
                 print();
-                goToPoint(me, action, 0.0, -rules.arena.depth/2 + rules.arena.bottom_radius);
+                goToPoint(me, action, 0.0, -g_rules.arena.depth/2 - g_rules.arena.goal_side_radius, Go::Stand);
             }
         }
         if (defState == DefenderState::OnGate) {
@@ -58,39 +56,42 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
             {
                 debug << "WARNING";
                 print();
-                goToPoint(me, action, x, z);
+                goToPoint(me, action, x, z, Go::InTime, t);
+                //TODO: predict jump
                 if (bot.distTo(game.ball.x, game.ball.z, game.ball.y)
-                        < rules.BALL_RADIUS + rules.ROBOT_MIN_RADIUS + 1/*magic*/)
+                        < g_rules.BALL_RADIUS + g_rules.ROBOT_MIN_RADIUS + 1/*magic*/)
                 {
-                    action.jump_speed = rules.ROBOT_MAX_JUMP_SPEED;
+                    action.jump_speed = g_rules.ROBOT_MAX_JUMP_SPEED;
                 }
+                lines.push_back(Line{x, 0, z, x, g_rules.arena.height, z, 0.1, 0, 0, 0, 1});
             }
             else
             {
                 //надо выбить мяч подальше от ворот
-                if (game.ball.z < -rules.arena.depth/4 /*magic*/)
-                {
-                    debug << "vipnut ball";
-                    print();
-                    goToPoint(me, action, game.ball.x, game.ball.z);
-                    if (bot.distTo(game.ball.x, game.ball.z, game.ball.y)
-                            < rules.BALL_RADIUS + rules.ROBOT_MIN_RADIUS + 1/*magic*/)
-                    {
-                        debug << "jump";
-                        print();
-                        action.jump_speed = rules.ROBOT_MAX_JUMP_SPEED;
-                    }
-                }
-                else
+                //TODO: if i run before opponent/anybody
+//                if (game.ball.z < -g_rules.arena.depth/4 /*magic*/)
+//                {
+//                    debug << "vipnut ball";
+//                    print();
+//                    goToPoint(me, action, game.ball.x, game.ball.z);
+//                    if (bot.distTo(game.ball.x, game.ball.z, game.ball.y)
+//                            < g_rules.BALL_RADIUS + g_rules.ROBOT_MIN_RADIUS + 1/*magic*/)
+//                    {
+//                        debug << "jump";
+//                        print();
+//                        action.jump_speed = g_rules.ROBOT_MAX_JUMP_SPEED;
+//                    }
+//                }
+//                else
                 {
                     debug << "look at ball";
                     print();
                     goToPoint(me,
                               action,
-                              clamp(-game.ball.x,
-                                    -rules.arena.goal_width/2 + rules.arena.goal_top_radius,
-                                    rules.arena.goal_width/2 - rules.arena.goal_top_radius),
-                              -rules.arena.depth/2 + rules.arena.bottom_radius);
+                              clamp(game.ball.x,
+                                    -g_rules.arena.goal_width/2 + g_rules.arena.goal_top_radius,
+                                    g_rules.arena.goal_width/2 - g_rules.arena.goal_top_radius),
+                              -g_rules.arena.depth/2 - g_rules.arena.goal_side_radius, Go::Stand);
                 }
             }
         }
@@ -117,7 +118,8 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
         {
             bool pathIsFind =false;
             //не прыгай если не достанешь
-            bool jump = (ball.distTo(me.x, me.z, me.y) < (rules.BALL_RADIUS + rules.ROBOT_MAX_RADIUS + 1.5/*magic*/)
+            //TODO: predict jump
+            bool jump = (ball.distTo(me.x, me.z, me.y) < (g_rules.BALL_RADIUS + g_rules.ROBOT_MAX_RADIUS + 1.5/*magic*/)
                          and me.y < ball.y
                          and me.z < ball.z);
             double t = 0;
@@ -127,9 +129,8 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
                 // Если мяч не вылетит за пределы арены
                 // (произойдет столкновение со стеной, которое мы не рассматриваем),
                 // и при этом мяч будет находится ближе к вражеским воротам, чем робот,
-                if (   predictedBall.z > me.z
-                    && abs(game.ball.x) < (rules.arena.width / 2.0)
-                    && abs(game.ball.z) < (rules.arena.depth / 2.0) )
+                double s_z = me.z + me.velocity_z * t - g_rules.ROBOT_ACCELERATION * t * t /2;
+                if (predictedBall.z > s_z and predictedBall.y < HIGHT + g_rules.BALL_RADIUS)
                 {
                     // Посчитаем, с какой скоростью робот должен бежать,
                     // Чтобы прийти туда же, где будет мяч, в то же самое время
@@ -137,19 +138,26 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
                     double delta_pos_dist = delta_pos.dist();
                     double need_speed = delta_pos_dist / t;
                     // Если эта скорость лежит в допустимом отрезке
-                    if (0.5 * rules.ROBOT_MAX_GROUND_SPEED < need_speed
-                        && need_speed < rules.ROBOT_MAX_GROUND_SPEED ) {
+                    if (/*0.5 * g_rules.ROBOT_MAX_GROUND_SPEED < need_speed
+                        &&*/ need_speed < g_rules.ROBOT_MAX_GROUND_SPEED ) {
                         // То это и будет наше текущее действие
                         Point2D target_velocity(delta_pos.normalize(delta_pos_dist)*need_speed);
                         action.target_velocity_x = target_velocity.x;
                         action.target_velocity_z = target_velocity.z;
                         action.target_velocity_y = 0.0;
-                        action.jump_speed = jump ? rules.ROBOT_MAX_JUMP_SPEED : 0.0;
+                        action.jump_speed = jump ? g_rules.ROBOT_MAX_JUMP_SPEED : 0.0;
                         action.use_nitro = false;
                         pathIsFind = true;
-                        debug << "go to ball";
+                        debug << "go to ball:" << t*12;
                         print();
+                        spheres.push_back(Sphere{predictedBall.x, predictedBall.y, predictedBall.z, 0.6, 0.0, 0.0, 1.0, 0.7});
                         break;
+                    }
+                    else
+                    {
+                        debug << "ball not dosijim:" << t*12 << " need_speed = " << need_speed;
+                        print();
+                        spheres.push_back(Sphere{predictedBall.x, predictedBall.y, predictedBall.z, 0.6, 1.0, 1.0, 0.0, 0.7});
                     }
                 }
             }
@@ -157,7 +165,8 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
             {
                 debug << "go to gate";
                 print();
-                goToPoint(me, action, pred.ballTrack.back().x, pred.ballTrack.back().z);
+                goToPoint(me, action, pred.ballTrack[12].x, pred.ballTrack[12].z, Go::Stand);
+                spheres.push_back(Sphere{pred.ballTrack[12].x, pred.ballTrack[12].y, pred.ballTrack[12].z, 0.6, 1.0, 0.0, 1.0, 0.7});
             }
         }
     }
@@ -245,20 +254,42 @@ MyStrategy::Role MyStrategy::chooseRole(const Robot &me, const Game &game)
     return resultRole;
 }
 
-void MyStrategy::goToPoint(const Robot &me, Action &action, double x, double z, bool accuracy, double t)
+void MyStrategy::goToPoint(const Robot &me, Action &action, double x, double z, Go accuracy, double t)
 {
-    if (accuracy)
+    if (accuracy == Go::InTime)
     {
         Point2D delta_pos(x - me.x, z - me.z);
         double delta_pos_dist = delta_pos.dist();
         double need_speed = delta_pos_dist / t;
         // Если эта скорость лежит в допустимом отрезке
         need_speed = clamp(need_speed,
-                           0.5 * g_rules.ROBOT_MAX_GROUND_SPEED,
-                           g_rules.ROBOT_MAX_GROUND_SPEED);
+                           0, g_rules.ROBOT_MAX_GROUND_SPEED);
         Point2D target_velocity(delta_pos.normalize(delta_pos_dist)*need_speed);
         action.target_velocity_x = target_velocity.x;
         action.target_velocity_z = target_velocity.z;
+    }
+    else if (accuracy == Go::Stand)
+    {
+        Point2D v(me.velocity_x, me.velocity_z);
+        double t = v.dist()/g_rules.ROBOT_ACCELERATION;
+        double s = v.dist()*t - g_rules.ROBOT_ACCELERATION * t *t /2;
+
+        Point2D delta_pos(x - me.x, z - me.z);
+        double delta_pos_dist = delta_pos.dist();
+        if (s >= delta_pos_dist)
+        {
+            debug << "try to stop";
+            print();
+            action.target_velocity_x = 0;
+            action.target_velocity_z = 0;
+        }
+        else
+        {
+            debug << "try to go fast";
+            print();
+            action.target_velocity_x = (x - me.x)*g_rules.ROBOT_MAX_GROUND_SPEED;
+            action.target_velocity_z = (z - me.z)*g_rules.ROBOT_MAX_GROUND_SPEED;
+        }
     }
     else
     {
@@ -275,8 +306,7 @@ std::tuple<bool, double, double, double> MyStrategy::goalWarning()
     {
         t += 1.0/12.0;
         if (fabs(predictedBall.x) < (g_rules.arena.goal_width / 2.0) and
-                predictedBall.z < -EPS and
-                predictedBall.y < 1 + HIGHT) {
+                predictedBall.z < -g_rules.arena.depth/2) {
             isWarning = true;
             x = predictedBall.x;
             z = predictedBall.z;

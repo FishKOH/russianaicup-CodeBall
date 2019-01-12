@@ -27,17 +27,28 @@ void Prediction::predictBall(model::Ball &testBall)
             double correction = fabs(testBall.x) - (g_rules.arena.width/2 - g_rules.BALL_RADIUS);
             if (testBall.x > 0)
                 correction *= -1;
-            testBall.x += correction;
+            testBall.x += 2*correction;
             testBall.velocity_x *= -g_rules.BALL_ARENA_E;
         }
         if (fabs(testBall.z) > g_rules.arena.depth/2 - g_rules.BALL_RADIUS and
-                fabs(testBall.x) > g_rules.arena.goal_width/2)
+                (fabs(testBall.x) > g_rules.arena.goal_width/2 or
+                 testBall.y > g_rules.arena.goal_height) )
         {
             double correction = fabs(testBall.z) - (g_rules.arena.depth/2 - g_rules.BALL_RADIUS);
             if (testBall.z > 0)
                 correction *= -1;
-            testBall.z += correction;
+            testBall.z += 2*correction;
             testBall.velocity_z *= -g_rules.BALL_ARENA_E;
+        }
+        if (testBall.y < g_rules.BALL_RADIUS)
+        {
+            testBall.y -= 2*(testBall.y - g_rules.BALL_RADIUS);
+            testBall.velocity_y *= -g_rules.BALL_ARENA_E;
+        }
+        if (testBall.y > g_rules.arena.height - g_rules.BALL_RADIUS)
+        {
+            testBall.y -= 2*(testBall.y - (g_rules.arena.height - g_rules.BALL_RADIUS));
+            testBall.velocity_y *= -g_rules.BALL_ARENA_E;
         }
         ballTrack.emplace_back(testBall.x, testBall.z, testBall.y);
     }

@@ -18,6 +18,7 @@ const double HIGHT_TIME = 0.5;
 class MyStrategy : public Strategy {
     enum class Role{ Attacker, Defender };
     enum class DefenderState{ToGate, OnGate};
+    enum class Go{Stand, InTime, VeryFast};
 public:
     MyStrategy();
 
@@ -26,7 +27,7 @@ public:
 private:
     bool isNewRound(const model::Game& game);
     Role chooseRole(const model::Robot& me, const model::Game& game);
-    void goToPoint(const model::Robot& me, model::Action& action, double x, double z, bool accuracy = false, double t = 0);
+    void goToPoint(const model::Robot& me, model::Action& action, double x, double z, Go accuracy = Go::VeryFast, double t = 0);
     std::tuple<bool, double, double, double> goalWarning();
 private:
     predict::Prediction pred;
