@@ -10,6 +10,8 @@
 #include "Prediction.h"
 
 const double EPS = 1e-5;
+const double HIGHT = 3.75;
+const double HIGHT_TIME = 0.5;
 
 class MyStrategy : public Strategy {
     enum class Role{ Attacker, Defender };
@@ -22,8 +24,8 @@ public:
 private:
     bool isNewRound(const model::Game& game);
     Role chooseRole(const model::Robot& me, const model::Game& game);
-    void goToPoint(const model::Robot& me, model::Action& action, double x, double z);
-    std::tuple<bool, double, double> goalWarning();
+    void goToPoint(const model::Robot& me, model::Action& action, double x, double z, bool accuracy = false, double t = 0);
+    std::tuple<bool, double, double, double> goalWarning();
 private:
     predict::Prediction pred;
 //    debug
