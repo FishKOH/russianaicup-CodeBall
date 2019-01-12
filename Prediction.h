@@ -53,6 +53,10 @@ class Prediction
 {
 public:
     Prediction();
+
+    void predictBall(model::Ball& testBall);
+
+    std::vector<Point3D> ballTrack;
 };
 
 }

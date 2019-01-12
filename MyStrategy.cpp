@@ -1,7 +1,6 @@
 #include "MyStrategy.h"
 
 #include <iostream>
-#include <sstream>
 #include <cmath>
 using namespace model;
 
@@ -24,51 +23,30 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
 
     Point3D bot(me.x, me.z, me.y);
 
-    std::stringstream t;
-    t << "id=" << me.id << " x="<< me.x<<" z="<< me.z<<" role=" << static_cast<int>(myRole) << " " << static_cast<int>(defState);
-    std::string t_str;std::getline(t, t_str);texts.push_back(t_str);
+    debug << "id=" << me.id << " x="<< me.x<<" z="<< me.z<<" role=" << static_cast<int>(myRole) << " " << static_cast<int>(defState);
+    print();
 
     model::Ball testBall = game.ball;
-    for (int t=1; t<36/*magic*/; t+=1)
-    {
-        predict::move(testBall, 1.0/g_rules.TICKS_PER_SECOND * 5/*magic*/);
-        if (fabs(testBall.x) > g_rules.arena.width/2 - g_rules.BALL_RADIUS)
-        {
-            double correction = fabs(testBall.x) - (g_rules.arena.width/2 - g_rules.BALL_RADIUS);
-            if (testBall.x > 0)
-                correction *= -1;
-            testBall.x += correction;
-            testBall.velocity_x *= -g_rules.BALL_ARENA_E;
-        }
-        if (fabs(testBall.z) > g_rules.arena.depth/2 - g_rules.BALL_RADIUS and
-                fabs(testBall.x) > g_rules.arena.goal_width/2)
-        {
-            double correction = fabs(testBall.z) - (g_rules.arena.depth/2 - g_rules.BALL_RADIUS);
-            if (testBall.z > 0)
-                correction *= -1;
-            testBall.z += correction;
-            testBall.velocity_z *= -g_rules.BALL_ARENA_E;
-        }
-        spheres.push_back(Sphere{testBall.x, testBall.y, testBall.z, 0.5, 1.0, 0.0, 0.0, 1.0});
-    }
+    pred.predictBall(testBall);
+    for (auto& predictedBall : pred.ballTrack)
+        spheres.push_back(Sphere{predictedBall.x, predictedBall.y, predictedBall.z, 0.5, 1.0, 0.0, 0.0, 1.0});
 
     if (myRole == Role::Defender)
     {
-        std::stringstream t;
-        t << "vy=" << me.velocity_y << " y="<< me.y;
-        std::string t_str;std::getline(t, t_str);texts.push_back(t_str);
+        debug << "vy=" << me.velocity_y << " y="<< me.y;
+        print();
         if (defState == DefenderState::ToGate)
         {
             if (bot.distTo(0.0, -rules.arena.depth/2 + rules.arena.bottom_radius, 1.0)<1/*magic*/)
             {
-                std::stringstream t;    t << "on gate";
-                std::string t_str;std::getline(t, t_str);texts.push_back(t_str);
+                debug << "on gate";
+                print();
                 defState = DefenderState::OnGate;
             }
             else
             {
-                std::stringstream t;    t << "go to gate";
-                std::string t_str;std::getline(t, t_str);texts.push_back(t_str);
+                debug << "go to gate";
+                print();
                 goToPoint(me, action, 0.0, -rules.arena.depth/2 + rules.arena.bottom_radius);
             }
         }
@@ -78,8 +56,8 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
             std::tie(isWarning, x, z, t) = goalWarning();
             if (isWarning)
             {
-                std::stringstream t;    t << "WARNING";
-                std::string t_str;std::getline(t, t_str);texts.push_back(t_str);
+                debug << "WARNING";
+                print();
                 goToPoint(me, action, x, z);
                 if (bot.distTo(game.ball.x, game.ball.z, game.ball.y)
                         < rules.BALL_RADIUS + rules.ROBOT_MIN_RADIUS + 1/*magic*/)
@@ -92,21 +70,21 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
                 //надо выбить мяч подальше от ворот
                 if (game.ball.z < -rules.arena.depth/4 /*magic*/)
                 {
-                    std::stringstream t;    t << "vipnut ball";
-                    std::string t_str;std::getline(t, t_str);texts.push_back(t_str);
+                    debug << "vipnut ball";
+                    print();
                     goToPoint(me, action, game.ball.x, game.ball.z);
                     if (bot.distTo(game.ball.x, game.ball.z, game.ball.y)
                             < rules.BALL_RADIUS + rules.ROBOT_MIN_RADIUS + 1/*magic*/)
                     {
-                        std::stringstream t;    t << "jump";
-                        std::string t_str;std::getline(t, t_str);texts.push_back(t_str);
+                        debug << "jump";
+                        print();
                         action.jump_speed = rules.ROBOT_MAX_JUMP_SPEED;
                     }
                 }
                 else
                 {
-                    std::stringstream t;    t << "look at ball";
-                    std::string t_str;std::getline(t, t_str);texts.push_back(t_str);
+                    debug << "look at ball";
+                    print();
                     goToPoint(me,
                               action,
                               clamp(-game.ball.x,
@@ -124,8 +102,8 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
         if (isNewRound(game))
         {
             Point2D botVel(me.velocity_x, me.velocity_z);
-            std::stringstream t;    t << bot.distTo(0.0, 0.0, 1.0) << " " << game.current_tick << " " << botVel.dist();
-            std::string t_str;std::getline(t, t_str);texts.push_back(t_str);
+            debug << bot.distTo(0.0, 0.0, 1.0) << " " << game.current_tick << " " << botVel.dist();
+            print();
 
             Point2D delta_pos(0 - me.x, 0 - me.z);
             double delta_pos_dist = delta_pos.dist();
@@ -143,19 +121,19 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
                          and me.y < ball.y
                          and me.z < ball.z);
             double t = 0;
-            for (auto& sph : spheres)
+            for (auto& predictedBall : pred.ballTrack)
             {
                 t += 1.0/12.0;
                 // Если мяч не вылетит за пределы арены
                 // (произойдет столкновение со стеной, которое мы не рассматриваем),
                 // и при этом мяч будет находится ближе к вражеским воротам, чем робот,
-                if (   sph.z > me.z
+                if (   predictedBall.z > me.z
                     && abs(game.ball.x) < (rules.arena.width / 2.0)
                     && abs(game.ball.z) < (rules.arena.depth / 2.0) )
                 {
                     // Посчитаем, с какой скоростью робот должен бежать,
                     // Чтобы прийти туда же, где будет мяч, в то же самое время
-                    Point2D delta_pos(sph.x - me.x, sph.z - me.z);
+                    Point2D delta_pos(predictedBall.x - me.x, predictedBall.z - me.z);
                     double delta_pos_dist = delta_pos.dist();
                     double need_speed = delta_pos_dist / t;
                     // Если эта скорость лежит в допустимом отрезке
@@ -169,17 +147,17 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
                         action.jump_speed = jump ? rules.ROBOT_MAX_JUMP_SPEED : 0.0;
                         action.use_nitro = false;
                         pathIsFind = true;
-                        std::stringstream t;    t << "go to ball";
-                        std::string t_str;std::getline(t, t_str);texts.push_back(t_str);
+                        debug << "go to ball";
+                        print();
                         break;
                     }
                 }
             }
             if (not pathIsFind)
             {
-                std::stringstream t;    t << "go to gate";
-                std::string t_str;std::getline(t, t_str);texts.push_back(t_str);
-                goToPoint(me, action, spheres.back().x, spheres.back().z);
+                debug << "go to gate";
+                print();
+                goToPoint(me, action, pred.ballTrack.back().x, pred.ballTrack.back().z);
             }
         }
     }
@@ -194,6 +172,14 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
 bool MyStrategy::isNewRound(const Game &game)
 {
     return game.ball.x ==0 && game.ball.z == 0 && game.ball.velocity_x == 0;
+}
+
+void MyStrategy::print()
+{
+    std::string t_str;
+    std::getline(debug, t_str);
+    debug.clear();
+    texts.push_back(t_str);
 }
 
 std::string MyStrategy::custom_rendering()
@@ -285,15 +271,15 @@ std::tuple<bool, double, double, double> MyStrategy::goalWarning()
 {
     bool isWarning = false;
     double x=0,z=0,t=0;
-    for (auto& sph : spheres)
+    for (auto& predictedBall : pred.ballTrack)
     {
         t += 1.0/12.0;
-        if (fabs(sph.x) < (g_rules.arena.goal_width / 2.0) and
-                sph.z < -EPS and
-                sph.y < 1 + HIGHT) {
+        if (fabs(predictedBall.x) < (g_rules.arena.goal_width / 2.0) and
+                predictedBall.z < -EPS and
+                predictedBall.y < 1 + HIGHT) {
             isWarning = true;
-            x = sph.x;
-            z = sph.z;
+            x = predictedBall.x;
+            z = predictedBall.z;
             break;
         }
     }

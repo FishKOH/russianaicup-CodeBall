@@ -4,7 +4,9 @@
 
 #ifndef _MY_STRATEGY_H_
 #define _MY_STRATEGY_H_
+#include <sstream>
 #include <tuple>
+
 #include "Strategy.h"
 
 #include "Prediction.h"
@@ -30,6 +32,9 @@ private:
     predict::Prediction pred;
 //    debug
 private:
+    std::stringstream debug;
+    void print();
+
     struct Line{
         double x1, y1, z1, x2, y2, z2, width, r, g, b, a;
     };
