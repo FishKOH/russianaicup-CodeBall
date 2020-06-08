@@ -28,7 +28,7 @@ private:
     bool isNewRound(const model::Game& game);
     Role chooseRole(const model::Robot& me, const model::Game& game);
     void goToPoint(const model::Robot& me, model::Action& action, double x, double z, Go accuracy = Go::VeryFast, double t = 0);
-    std::tuple<bool, double, double, double> goalWarning();
+    std::tuple<bool, Point3D, double> goalWarning();
 private:
     predict::Prediction pred;
 //    debug

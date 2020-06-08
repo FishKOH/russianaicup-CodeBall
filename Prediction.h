@@ -1,6 +1,7 @@
 #ifndef PREDICTION_H
 #define PREDICTION_H
 #include <cmath>
+#include <tuple>
 
 #include "Strategy.h"
 
@@ -55,8 +56,15 @@ public:
     Prediction();
 
     void predictBall(model::Ball& testBall);
+    std::tuple<int, std::vector<Point3D>> predictBot(model::Robot bot, double jumpSpeed);
+    std::tuple<int, double, std::vector<Point3D> > findJumpSpeed(model::Robot bot);
+    bool predictJumpInNextTick(model::Robot bot, model::Ball ball);
 
     std::vector<Point3D> ballTrack;
+
+    int tick = 36;
+    int periodInTick = 5;
+    double periodInSec = periodInTick/60.0/*TODO:g_rules.tick_per_second*/;
 };
 
 }

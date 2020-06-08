@@ -22,6 +22,7 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
     }
 
     Point3D bot(me.x, me.z, me.y);
+    Point3D botV(me.velocity_x, me.velocity_z, me.velocity_y);
 
     debug << "id=" << me.id << " x="<< me.x<<" z="<< me.z<<" role=" << static_cast<int>(myRole) << " " << static_cast<int>(defState);
     print();
@@ -29,46 +30,83 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
     model::Ball testBall = game.ball;
     pred.predictBall(testBall);
     for (auto& predictedBall : pred.ballTrack)
-        spheres.push_back(Sphere{predictedBall.x, predictedBall.y, predictedBall.z, 0.5, 1.0, 0.0, 0.0, 0.5});
+        spheres.push_back(Sphere{predictedBall.x, predictedBall.y, predictedBall.z, 0.3, 1.0, 0.0, 0.0, 0.5});
 
     if (myRole == Role::Defender)
-    {
-        if (defState == DefenderState::ToGate)
+    {        
+        bool isWarning;
+        Point3D goal;
+        double t;
+        std::tie(isWarning, goal, t) = goalWarning();
+        if (isWarning)
         {
-            if (bot.distTo(0.0, -g_rules.arena.depth/2 - g_rules.arena.goal_side_radius, 1.0)<1/*magic*/)
+            debug << "WARNING";
+            print();
+            goToPoint(me, action, goal.x, goal.z, Go::InTime, t);
+
+            //TODO: predict jump
+            std::vector<Point3D> pJ;
+            int nJ;
+            double jumpSpeed;
+            std::tie(nJ, jumpSpeed, pJ) = pred.findJumpSpeed(me);
+            for (auto & b : pJ)
+                spheres.push_back(Sphere{b.x, b.y, b.z, 0.2, 0.0, 1.0, 1.0, 0.5});
+
+            if (nJ != -1)
             {
-                debug << "on gate";
+                action.jump_speed = jumpSpeed;
+                debug << "findjumpspeed: " << jumpSpeed ;
                 print();
-                defState = DefenderState::OnGate;
-            }
-            else
-            {
-                debug << "go to gate";
+                spheres.back().radius = 0.5;
+                spheres.back().g = 0.5;
+                debug << "jump is detected: " << nJ;
                 print();
-                goToPoint(me, action, 0.0, -g_rules.arena.depth/2 - g_rules.arena.goal_side_radius, Go::Stand);
             }
+//            std::vector<Point3D> pJ;
+//            int nJ;
+//            std::tie(nJ, pJ) = pred.predictBot(me, g_rules.ROBOT_MAX_JUMP_SPEED);
+//            for (auto & b : pJ)
+//                spheres.push_back(Sphere{b.x, b.y, b.z, 0.2, 0.0, 1.0, 1.0, 0.5});
+//            if (nJ != -1)
+//            {
+//                if (pred.ballTrack[nJ].y < pJ[nJ].y)
+//                {
+//                    double needJumpSpeed = g_rules.ROBOT_MAX_JUMP_SPEED / pJ[nJ].y * pred.ballTrack[nJ].y;
+//                    debug << "jump is bad: " << pred.ballTrack[nJ].y << " " << pJ[nJ].y << " try speed=" << needJumpSpeed ;
+//                    print();
+//                    std::tie(nJ, pJ) = pred.predictBot(me, needJumpSpeed);
+//                    for (auto & b : pJ)
+//                        spheres.push_back(Sphere{b.x, b.y, b.z, 0.2, 1.0, 0.5, 0.0, 0.5});
+//                    if (nJ != -1)
+//                    {
+//                        spheres.back().radius = 0.5;
+//                        spheres.back().r = 0.5;
+//                        debug << "jump is detected: " << nJ;
+//                        print();
+//                        action.jump_speed = needJumpSpeed;
+//                    }
+//                }
+//                else
+//                {
+//                    spheres.back().radius = 0.5;
+//                    spheres.back().g = 0.5;
+//                    debug << "jump is detected: " << nJ;
+//                    print();
+//                    action.jump_speed = g_rules.ROBOT_MAX_JUMP_SPEED;
+//                }
+//            }
+
+//            if (bot.distTo(game.ball.x, game.ball.z, game.ball.y)
+//                    < g_rules.BALL_RADIUS + g_rules.ROBOT_MIN_RADIUS + 1/*magic*/)
+//            {
+//                action.jump_speed = g_rules.ROBOT_MAX_JUMP_SPEED;
+//            }
+            lines.push_back(Line{goal.x, 0, goal.z, goal.x, g_rules.arena.height, goal.z, 0.2, 0, 0, 0, 1});
         }
-        if (defState == DefenderState::OnGate) {
-            bool isWarning;
-            double x,z,t;
-            std::tie(isWarning, x, z, t) = goalWarning();
-            if (isWarning)
-            {
-                debug << "WARNING";
-                print();
-                goToPoint(me, action, x, z, Go::InTime, t);
-                //TODO: predict jump
-                if (bot.distTo(game.ball.x, game.ball.z, game.ball.y)
-                        < g_rules.BALL_RADIUS + g_rules.ROBOT_MIN_RADIUS + 1/*magic*/)
-                {
-                    action.jump_speed = g_rules.ROBOT_MAX_JUMP_SPEED;
-                }
-                lines.push_back(Line{x, 0, z, x, g_rules.arena.height, z, 0.1, 0, 0, 0, 1});
-            }
-            else
-            {
-                //надо выбить мяч подальше от ворот
-                //TODO: if i run before opponent/anybody
+        else
+        {
+            //надо выбить мяч подальше от ворот
+            //TODO: if i run before opponent/anybody
 //                if (game.ball.z < -g_rules.arena.depth/4 /*magic*/)
 //                {
 //                    debug << "vipnut ball";
@@ -83,16 +121,16 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
 //                    }
 //                }
 //                else
-                {
-                    debug << "look at ball";
-                    print();
-                    goToPoint(me,
-                              action,
-                              clamp(game.ball.x,
-                                    -g_rules.arena.goal_width/2 + g_rules.arena.goal_top_radius,
-                                    g_rules.arena.goal_width/2 - g_rules.arena.goal_top_radius),
-                              -g_rules.arena.depth/2 - g_rules.arena.goal_side_radius, Go::Stand);
-                }
+            {
+                debug << "look at ball";
+                print();
+                goToPoint(me,
+                          action,
+                          clamp(game.ball.x,
+                                -g_rules.arena.goal_width/2 + g_rules.arena.goal_top_radius,
+                                g_rules.arena.goal_width/2 - g_rules.arena.goal_top_radius),
+                          -g_rules.arena.depth/2 - g_rules.arena.goal_depth + g_rules.arena.goal_top_radius,
+                          Go::Stand);
             }
         }
     }
@@ -103,7 +141,7 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
         if (isNewRound(game))
         {
             Point2D botVel(me.velocity_x, me.velocity_z);
-            debug << bot.distTo(0.0, 0.0, 1.0) << " " << game.current_tick << " " << botVel.dist();
+            debug << "fast "<< bot.distTo(0.0, 0.0, 1.0) << " " << game.current_tick << " " << botVel.dist();
             print();
 
             Point2D delta_pos(0 - me.x, 0 - me.z);
@@ -111,17 +149,130 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
             Point2D target_velocity(delta_pos.normalize(delta_pos_dist)*g_rules.ROBOT_MAX_GROUND_SPEED);
             action.target_velocity_x = target_velocity.x;
             action.target_velocity_z = target_velocity.z;
-            if (delta_pos_dist/g_rules.MAX_ENTITY_SPEED <= 0.25 and delta_pos_dist/botVel.dist() < 0.25)
-                action.jump_speed = g_rules.ROBOT_MAX_JUMP_SPEED;
+
+            std::vector<Point3D> pJ;
+            int nJ;
+            double jumpSpeed;
+            std::tie(nJ, jumpSpeed, pJ) = pred.findJumpSpeed(me);
+            for (auto & b : pJ)
+                spheres.push_back(Sphere{b.x, b.y, b.z, 0.2, 0.0, 1.0, 1.0, 0.5});
+
+            if (nJ != -1)
+            {
+                action.jump_speed = jumpSpeed;
+                debug << "findjumpspeed: " << jumpSpeed ;
+                print();
+                spheres.back().radius = 0.5;
+                spheres.back().g = 0.5;
+                debug << "jump is detected: " << nJ;
+                print();
+            }
+//            std::vector<Point3D> pJ;
+//            int nJ;
+//            std::tie(nJ, pJ) = pred.predictBot(me, g_rules.ROBOT_MAX_JUMP_SPEED);
+//            for (auto & b : pJ)
+//                spheres.push_back(Sphere{b.x, b.y, b.z, 0.2, 0.0, 1.0, 1.0, 0.5});
+//            if (nJ != -1)
+//            {
+//                if (pred.ballTrack[nJ].y < pJ[nJ].y)
+//                {
+//                    double needJumpSpeed = g_rules.ROBOT_MAX_JUMP_SPEED / pJ[nJ].y * pred.ballTrack[nJ].y;
+//                    debug << "jump is bad: " << pred.ballTrack[nJ].y << " " << pJ[nJ].y << " try speed=" << needJumpSpeed ;
+//                    print();
+//                    std::tie(nJ, pJ) = pred.predictBot(me, needJumpSpeed);
+//                    for (auto & b : pJ)
+//                        spheres.push_back(Sphere{b.x, b.y, b.z, 0.2, 1.0, 0.5, 0.0, 0.5});
+//                    if (nJ != -1)
+//                    {
+//                        spheres.back().radius = 0.5;
+//                        spheres.back().r = 0.5;
+//                        debug << "jump is detected: " << nJ;
+//                        print();
+//                        action.jump_speed = needJumpSpeed;
+//                    }
+//                }
+//                else
+//                {
+//                    spheres.back().radius = 0.5;
+//                    spheres.back().g = 0.5;
+//                    debug << "jump is detected: " << nJ;
+//                    print();
+//                    action.jump_speed = g_rules.ROBOT_MAX_JUMP_SPEED;
+//                }
+//            }
         }
         else
         {
             bool pathIsFind =false;
             //не прыгай если не достанешь
             //TODO: predict jump
-            bool jump = (ball.distTo(me.x, me.z, me.y) < (g_rules.BALL_RADIUS + g_rules.ROBOT_MAX_RADIUS + 1.5/*magic*/)
-                         and me.y < ball.y
-                         and me.z < ball.z);
+//            bool jump = (ball.distTo(me.x, me.z, me.y) < (g_rules.BALL_RADIUS + g_rules.ROBOT_MAX_RADIUS + 1.5/*magic*/)
+//                         and me.y < ball.y
+//                         and me.z < ball.z);
+
+            std::vector<Point3D> pJ;
+            int nJ;
+            double jumpSpeed;
+            std::tie(nJ, jumpSpeed, pJ) = pred.findJumpSpeed(me);
+            for (auto & b : pJ)
+                spheres.push_back(Sphere{b.x, b.y, b.z, 0.2, 0.0, 1.0, 1.0, 0.5});
+
+            if (nJ != -1)
+            {
+                action.jump_speed = jumpSpeed;
+                debug << "findjumpspeed: " << jumpSpeed ;
+                print();
+                spheres.back().radius = 0.5;
+                spheres.back().g = 0.5;
+                debug << "jump is detected: " << nJ;
+                print();
+                if (me.z > ball.z or pJ[nJ].z > pred.ballTrack[nJ].z)
+                {
+                    debug << "but i dont jump because warning goal";
+                    print();
+                    action.jump_speed = 0;
+                }
+            }
+
+//            std::vector<Point3D> pJ;
+//            int nJ;
+//            std::tie(nJ, pJ) = pred.predictBot(me, g_rules.ROBOT_MAX_JUMP_SPEED);
+//            for (auto & b : pJ)
+//                spheres.push_back(Sphere{b.x, b.y, b.z, 0.2, 0.0, 1.0, 1.0, 0.5});
+//            if (nJ != -1)
+//            {
+//                if (pred.ballTrack[nJ].y < pJ[nJ].y)
+//                {
+//                    double needJumpSpeed = g_rules.ROBOT_MAX_JUMP_SPEED / pJ[nJ].y * pred.ballTrack[nJ].y/ pJ[nJ].y * pred.ballTrack[nJ].y;
+//                    debug << "jump is bad: " << pred.ballTrack[nJ].y << " " << pJ[nJ].y << " try speed=" << needJumpSpeed ;
+//                    print();
+//                    std::tie(nJ, pJ) = pred.predictBot(me, needJumpSpeed);
+//                    for (auto & b : pJ)
+//                        spheres.push_back(Sphere{b.x, b.y, b.z, 0.2, 1.0, 0.5, 0.0, 0.5});
+//                    if (nJ != -1)
+//                    {
+//                        spheres.back().radius = 0.5;
+//                        spheres.back().r = 0.5;
+//                        debug << "jump is detected: " << nJ;
+//                        print();
+//                        action.jump_speed = needJumpSpeed;
+//                    }
+//                }
+//                else
+//                {
+//                    spheres.back().radius = 0.5;
+//                    spheres.back().g = 0.5;
+//                    debug << "jump is detected: " << nJ;
+//                    action.jump_speed = g_rules.ROBOT_MAX_JUMP_SPEED;
+//                }
+
+//                if (me.z > ball.z or pJ[nJ].z > pred.ballTrack[nJ].z)
+//                {
+//                    debug << "but i dont jump because warning goal";
+//                    action.jump_speed = 0;
+//                }
+//                print();
+//            }
             double t = 0;
             for (auto& predictedBall : pred.ballTrack)
             {
@@ -145,19 +296,19 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
                         action.target_velocity_x = target_velocity.x;
                         action.target_velocity_z = target_velocity.z;
                         action.target_velocity_y = 0.0;
-                        action.jump_speed = jump ? g_rules.ROBOT_MAX_JUMP_SPEED : 0.0;
+//                        action.jump_speed = jump ? g_rules.ROBOT_MAX_JUMP_SPEED : 0.0;
                         action.use_nitro = false;
                         pathIsFind = true;
                         debug << "go to ball:" << t*12;
                         print();
-                        spheres.push_back(Sphere{predictedBall.x, predictedBall.y, predictedBall.z, 0.6, 0.0, 0.0, 1.0, 0.7});
+                        spheres.push_back(Sphere{predictedBall.x, predictedBall.y, predictedBall.z, 0.4, 0.0, 0.0, 1.0, 0.7});
                         break;
                     }
                     else
                     {
                         debug << "ball not dosijim:" << t*12 << " need_speed = " << need_speed;
                         print();
-                        spheres.push_back(Sphere{predictedBall.x, predictedBall.y, predictedBall.z, 0.6, 1.0, 1.0, 0.0, 0.7});
+                        spheres.push_back(Sphere{predictedBall.x, predictedBall.y, predictedBall.z, 0.4, 1.0, 1.0, 0.0, 0.7});
                     }
                 }
             }
@@ -166,7 +317,7 @@ void MyStrategy::act(const Robot& me, const Rules& rules, const Game& game, Acti
                 debug << "go to gate";
                 print();
                 goToPoint(me, action, pred.ballTrack[12].x, pred.ballTrack[12].z, Go::Stand);
-                spheres.push_back(Sphere{pred.ballTrack[12].x, pred.ballTrack[12].y, pred.ballTrack[12].z, 0.6, 1.0, 0.0, 1.0, 0.7});
+                spheres.push_back(Sphere{pred.ballTrack[12].x, pred.ballTrack[12].y, pred.ballTrack[12].z, 0.4, 1.0, 0.0, 1.0, 0.7});
             }
         }
     }
@@ -298,20 +449,20 @@ void MyStrategy::goToPoint(const Robot &me, Action &action, double x, double z, 
     }
 }
 
-std::tuple<bool, double, double, double> MyStrategy::goalWarning()
+std::tuple<bool, Point3D, double> MyStrategy::goalWarning()
 {
     bool isWarning = false;
-    double x=0,z=0,t=0;
+    Point3D goal;
+    double t=0;
     for (auto& predictedBall : pred.ballTrack)
     {
         t += 1.0/12.0;
         if (fabs(predictedBall.x) < (g_rules.arena.goal_width / 2.0) and
                 predictedBall.z < -g_rules.arena.depth/2) {
             isWarning = true;
-            x = predictedBall.x;
-            z = predictedBall.z;
+            goal = predictedBall;
             break;
         }
     }
-    return std::make_tuple(isWarning, x, z, t);
+    return std::make_tuple(isWarning, goal, t);
 }
